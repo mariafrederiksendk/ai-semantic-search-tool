@@ -46,7 +46,7 @@ class DocumentLoader:
                         all_content.append(content)
                         files_loaded.append(file_path.name)
                 except Exception as e:
-                    print(f"⚠️  Warning: Failed to load {file_path.name}: {e}")
+                    print(f"Warning: Failed to load {file_path.name}: {e}")
 
         if not all_content:
             raise ValueError(f"No valid documents found in {self.data_dir}")
@@ -108,6 +108,6 @@ class DocumentLoader:
                 if text.strip():
                     text_parts.append(text)
             except Exception as e:
-                print(f"⚠️  Warning: Failed to extract page {page_num} from {file_path.name}: {e}")
+                print(f"Warning: Failed to extract page {page_num} from {file_path.name}: {e}")
 
         return "\n\n".join(text_parts)
