@@ -1,99 +1,71 @@
-from embedder import Embedder
-from search import SemanticSearch
-from generator import SummaryGenerator
-from file_loader import DocumentLoader
-from nltk.tokenize import sent_tokenize
-from typing import List
-import nltk
-import sys
+import logging
+import warnings
+from pathlib import Path
 
-# Download required NLTK data
-try:
+import nltk
+from nltk.tokenize import sent_tokenize
+from pypdf import PdfReader
+from sentence_transformers import SentenceTransformer, util
+from transformers import pipeline
+
+warnings.filterwarnings("ignore")
+logging.getLogger("transformers").setLevel(logging.ERROR)
+
+DATA_DIR = "./data"
+TOP_K = 3
+
+
+def load_documents(data_dir):
+    texts = []
+    for path in sorted(Path(data_dir).iterdir()):
+        if path.suffix == ".pdf":
+            texts.append(" ".join(page.extract_text() for page in PdfReader(path).pages))
+        elif path.suffix in {".txt", ".md"}:
+            texts.append(path.read_text(encoding="utf-8"))
+    return " ".join(" ".join(texts).split())
+
+
+def generate_summary(summary_model, query, passages):
+    text = f"Question: {query}. {' '.join(passages)}"
+    result = summary_model(text, max_length=100, min_length=20, do_sample=False, truncation=True)
+    return result[0]["summary_text"]
+
+
+def main():
     nltk.download("punkt", quiet=True)
     nltk.download("punkt_tab", quiet=True)
-except Exception as e:
-    print(f"Warning: Failed to download NLTK data: {e}")
-    print("Continuing anyway - may fail if data is not already installed.")
 
-# Load all documents from data directory
-try:
-    print("Loading documents from data directory...")
-    loader = DocumentLoader(data_dir="./data")
-    content, files_loaded = loader.load_all_documents()
+    documents = sent_tokenize(load_documents(DATA_DIR), language="english")
 
-    print(f"Loaded {len(files_loaded)} file(s):")
-    for filename in files_loaded:
-        print(f"  • {filename}")
+    embedding_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
+    doc_embeddings = embedding_model.encode(documents)
+    summary_model = pipeline("summarization", model="facebook/bart-large-cnn")
 
-    if not content.strip():
-        print(f"Error: All files are empty")
-        sys.exit(1)
+    print("\nSemantic Search & Summary Tool")
+    print("=" * 50)
 
-    print("\nTokenizing documents into sentences...")
-    documents = sent_tokenize(content, language="english")
-    print(f"Created {len(documents)} searchable text segments")
+    while True:
+        try:
+            query = input("\nEnter query (or 'quit' to exit): ")
+            if query.lower() == "quit":
+                break
+            if not query.strip():
+                continue
 
-except FileNotFoundError as e:
-    print(f"Error: {e}")
-    print("Please ensure the ./data directory exists with at least one .txt, .md, or .pdf file.")
-    sys.exit(1)
-except Exception as e:
-    print(f"Error loading documents: {e}")
-    sys.exit(1)
+            hits = util.semantic_search(embedding_model.encode(query), doc_embeddings, top_k=TOP_K)[0]
+            passages = [documents[hit["corpus_id"]] for hit in hits]
 
-# Initialize embedder and search engine
-try:
-    print("Loading embedding model (this may take a moment on first run)...")
-    embedder = Embedder()
-    print("Model loaded successfully")
+            print("\nTop results:")
+            for passage, hit in zip(passages, hits):
+                print(f"- {passage[:100]}{'...' if len(passage) > 100 else ''} (score: {hit['score']:.2f})")
 
-    print("Creating document embeddings...")
-    doc_embeddings = embedder(documents)
-    print("Embeddings created")
+            print(f"\nSummary: {generate_summary(summary_model, query, passages)}")
 
-    print("Building search index...")
-    search_engine = SemanticSearch(doc_embeddings, documents)
-    print("Search engine ready")
-
-    print("Loading summary generator (this may take a moment)...")
-    summary_generator = SummaryGenerator()
-    print("Summary generator ready")
-
-except Exception as e:
-    print(f"Error initializing search engine: {e}")
-    print("This may be due to network issues downloading the model.")
-    print("Please check your internet connection and try again.")
-    sys.exit(1)
-
-print("\n Semantic Search & Summary Tool")
-print("=" * 50)
-
-while True:
-    try:
-        query = input("\nEnter query (or 'quit' to exit): ")
-        if query.lower() == "quit":
-            print("Goodbye!")
+        except (KeyboardInterrupt, EOFError):
             break
+        except Exception as e:
+            print(f"Error during search: {e}")
 
-        if not query.strip():
-            print("Please enter a valid query")
-            continue
 
-        q_emb = embedder(query)
-        results = search_engine.search(q_emb, top_k=3)
-
-        print("\nTop results:")
-        for text, score in results:
-            print(f"- {text[:100]}{'...' if len(text) > 100 else ''} (score: {score:.2f})")
-
-        # Generate summary automatically
-        passages: List[str] = [text for text, score in results]
-        summary: str = summary_generator.generate_summary(query, passages)
-        print(f"\n Summary: {summary}")
-
-    except KeyboardInterrupt:
-        print("\n\nInterrupted by user. Goodbye!")
-        break
-    except Exception as e:
-        print(f" Error during search: {e}")
-        print("Please try a different query.")
+if __name__ == "__main__":
+    main()

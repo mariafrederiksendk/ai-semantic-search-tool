@@ -16,9 +16,9 @@ Here's how it works under the hood:
 - Both the text passages and user queries are encoded into vectors using Sentence-BERT.
 - These embeddings capture semantic meaning, so that even differently worded texts can be recognized as similar.
 
-### 2. Vector Indexing (FAISS)
+### 2. Similarity Search
 
-- All embeddings are stored in a FAISS index that enables fast and scalable similarity search.
+- All passage embeddings are kept in memory.
 - When a query is submitted, its embedding is compared to the stored ones to find the nearest matches.
 
 ### 3. Similarity Scores (cosine similarity)
@@ -31,5 +31,4 @@ Here's how it works under the hood:
 
 - **Python 3.11+**
 - **Sentence-BERT** (all-mpnet-base-v2 model) for text embeddings
-- **FAISS** (IndexFlatIP) for fast vector similarity search
 - **BART** (facebook/bart-large-cnn) for AI summary generation
