@@ -3,7 +3,7 @@
 ![alt text](image.png)
 
 A prototype search tool that finds text based on meaning, not just keywords.
-You enter a keyword, it finds the most relevant passages using an AI model, and a second AI model gives you a short summary of those passages.
+You enter a query, it finds the most relevant passages using an AI model, and a second AI model gives you a short summary of those passages.
 
 ---
 
@@ -27,8 +27,22 @@ Here's how it works under the hood:
 - A score close to **1.0** means high semantic overlap; a score closer to **0.0** means weak or no similarity.
 - For example, `(score: 0.89)` means the model finds that result highly relevant to the query's meaning.
 
+### 4. Summary (BART)
+
+- The top results are combined with the query and passed to BART, a summarization model.
+- BART writes a short summary based only on those passages, giving a quick overview of what the documents say about the query.
+
 ## Tech Stack
 
 - **Python 3.11+**
 - **Sentence-BERT** (all-mpnet-base-v2 model) for text embeddings
 - **BART** (facebook/bart-large-cnn) for AI summary generation
+
+## Getting Started
+
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python src/main.py
+
+Put your .pdf, .txt or .md files in the `data/` folder, and run the command from the project root.
