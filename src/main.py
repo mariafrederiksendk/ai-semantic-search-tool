@@ -2,10 +2,11 @@ import logging
 import warnings
 from pathlib import Path
 
+import faiss
 import nltk
 from nltk.tokenize import sent_tokenize
 from pypdf import PdfReader
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer
 from transformers import pipeline
 
 warnings.filterwarnings("ignore")
@@ -39,6 +40,9 @@ def main():
 
     embedding_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
     doc_embeddings = embedding_model.encode(documents)
+    faiss.normalize_L2(doc_embeddings)
+    index = faiss.IndexFlatIP(doc_embeddings.shape[1])
+    index.add(doc_embeddings)
     summary_model = pipeline("summarization", model="facebook/bart-large-cnn")
 
     print("\nSemantic Search & Summary Tool")
@@ -52,12 +56,14 @@ def main():
             if not query.strip():
                 continue
 
-            hits = util.semantic_search(embedding_model.encode(query), doc_embeddings, top_k=TOP_K)[0]
-            passages = [documents[hit["corpus_id"]] for hit in hits]
+            query_embedding = embedding_model.encode([query])
+            faiss.normalize_L2(query_embedding)
+            scores, ids = index.search(query_embedding, TOP_K)
+            passages = [documents[i] for i in ids[0]]
 
             print("\nTop results:")
-            for passage, hit in zip(passages, hits):
-                print(f"- {passage[:100]}{'...' if len(passage) > 100 else ''} (score: {hit['score']:.2f})")
+            for passage, score in zip(passages, scores[0]):
+                print(f"- {passage[:100]}{'...' if len(passage) > 100 else ''} (score: {score:.2f})")
 
             print(f"\nSummary: {generate_summary(summary_model, query, passages)}")
 
