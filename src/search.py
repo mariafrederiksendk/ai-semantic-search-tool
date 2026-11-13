@@ -40,22 +40,8 @@ def build_index(path):
     return sentences, index
 
 
-class SearchIndex:
-    def __init__(self):
-        self.filename = None
-        self.documents = []
-        self.index = None
-
-    def load(self, path, filename=None):
-        documents, index = build_index(path)
-        self.filename = filename or path.name
-        self.documents = documents
-        self.index = index
-
-    def search(self, query):
-        if self.index is None:
-            return []
-        query_embedding = embedding_model.encode([query])
-        faiss.normalize_L2(query_embedding)
-        scores, ids = self.index.search(query_embedding, min(TOP_K, len(self.documents)))
-        return [(self.documents[i], score) for i, score in zip(ids[0], scores[0])]
+def search(query, documents, index):
+    query_embedding = embedding_model.encode([query])
+    faiss.normalize_L2(query_embedding)
+    scores, ids = index.search(query_embedding, min(TOP_K, len(documents)))
+    return [(documents[i], score) for i, score in zip(ids[0], scores[0])]
